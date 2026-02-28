@@ -1,0 +1,20 @@
+[
+  {
+    "slug": "welcome",
+    "title": "欢迎来到我的博客",
+    "date": "2026-02-28",
+    "description": "这是一个Markdown静态站点Demo博客，支持添加新文章、渲染Markdown，并可部署至GitHub Pages/Vercel等。",
+    "aiDescription": "这是一个Markdown静态站点Demo博客，支持添加新文章、渲染Markdown，并可部署至GitHub Pages/Vercel等。",
+    "excerpt": "欢迎来到我的博客 这个博客是一个 Markdown 静态站点 Demo。 你可以在 posts/ 目录添加新的 .md 文件，并在 posts/index.json 里增加文章元信息。 当前功能 首页文章列表 文章详情页渲染 Markdow",
+    "summarySource": "ai-cache"
+  },
+  {
+    "slug": "write-markdown",
+    "title": "如何写一篇 Markdown 文章",
+    "date": "2026-02-28",
+    "description": "如何撰写Markdown文章，包括标题、文本样式、代码块、链接等常用写法及建议从写作实践入手逐步优化。",
+    "aiDescription": "如何撰写Markdown文章，包括标题、文本样式、代码块、链接等常用写法及建议从写作实践入手逐步优化。",
+    "excerpt": "如何写一篇 Markdown 文章 Markdown 常用写法如下： 标题 使用 到 表示不同级别标题。 文本样式 粗体 斜体 行内代码 链接 访问我的首页 代码块 有序列表 先写标题 再补正文 最后发布 引用 写作最难的是开始，先写出来再",
+    "summarySource": "ai-cache"
+  }
+]

@@ -1,0 +1,14 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Local environment / secrets
+.env
+.env.local
+
+# Local blog config (may contain private endpoints/settings)
+blog.config.json
+blog.config.local.json
+
+# Generated runtime cache
+posts/.ai-summary-cache.json

@@ -1,0 +1,14 @@
+{
+  "excerptLength": 120,
+  "aiSummary": {
+    "enabled": false,
+    "mode": "missing-meta",
+    "baseURL": "https://api.openai.com/v1",
+    "model": "gpt-4o-mini",
+    "apiKeyEnv": "OPENAI_API_KEY",
+    "maxInputChars": 4000,
+    "maxOutputChars": 140,
+    "forceRefresh": false,
+    "allowStaleCache": true
+  }
+}

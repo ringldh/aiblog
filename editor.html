@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>编辑器 - 我的博客</title>
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <h1><a href="index.html" class="title-link">我的博客</a></h1>
+        <nav>
+          <a href="index.html">首页</a>
+          <a href="editor.html">编辑器</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container editor-layout">
+      <section>
+        <h2>Markdown 编辑</h2>
+        <textarea id="md-input" class="editor-input"># 你好，博客
+
+这里是你的第一篇 Markdown 预览。
+
+## 列表
+- 一条内容
+- 第二条内容
+
+## 代码
+```js
+console.log("hello blog");
+```</textarea>
+        <div class="editor-actions">
+          <button id="btn-preview" type="button">刷新预览</button>
+          <button id="btn-download" type="button">下载 .md</button>
+        </div>
+
+        <h3>AI 摘要（OpenAI-like）</h3>
+        <div class="form-grid">
+          <label>
+            Base URL
+            <input id="ai-baseurl" type="text" value="http://127.0.0.1:3000/v1" />
+          </label>
+          <label>
+            Model
+            <input id="ai-model" type="text" value="qwen2.5:7b" />
+          </label>
+          <label>
+            API Key
+            <input id="ai-key" type="password" placeholder="sk-..." />
+          </label>
+        </div>
+        <div class="editor-actions">
+          <button id="btn-ai-summary" type="button">AI 生成摘要</button>
+        </div>
+        <textarea
+          id="ai-summary-output"
+          class="editor-input summary-output"
+          placeholder="这里显示 AI 摘要结果"
+        ></textarea>
+      </section>
+
+      <section>
+        <h2>预览</h2>
+        <article id="preview" class="post-content"></article>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <small>编辑器中的 API Key 仅保存到当前浏览器本地存储。</small>
+      </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
+    <script src="assets/markdown.js"></script>
+    <script src="assets/editor.js"></script>
+  </body>
+</html>

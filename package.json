@@ -1,0 +1,12 @@
+{
+  "name": "markdown-static-blog-demo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "generate:index": "node scripts/generate-index.js",
+    "check:content": "node scripts/check-content.js",
+    "build": "npm run generate:index && npm run check:content",
+    "serve": "python -m http.server 8000",
+    "start": "npm run build && npm run serve"
+  }
+}
