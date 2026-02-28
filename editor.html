@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>编辑器 - 我的博客</title>
     <link rel="stylesheet" href="assets/style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css"
+    />
   </head>
   <body>
     <header class="site-header">
@@ -44,6 +48,10 @@
             日期（可选）
             <input id="post-date" type="date" />
           </label>
+          <label class="checkbox-line">
+            <input id="post-draft" type="checkbox" />
+            <span>草稿（不在首页展示）</span>
+          </label>
         </div>
 
         <textarea id="md-input" class="editor-input"># 你好，博客
@@ -60,15 +68,26 @@ console.log("hello blog");
 ```</textarea>
 
         <label class="summary-label">
-          AI 摘要（发布时可写入 front matter 的 description）
+          AI 摘要（发布时写入 front matter 的 description）
           <textarea id="ai-summary-output" class="editor-input summary-output"></textarea>
         </label>
 
         <div class="editor-actions">
           <button id="btn-preview" type="button">刷新预览</button>
           <button id="btn-download" type="button">下载 .md</button>
+          <button id="btn-save-draft" type="button">保存草稿</button>
           <button id="btn-publish" type="button">发布到网站</button>
           <button id="btn-ai-summary" type="button">AI 生成摘要</button>
+        </div>
+
+        <div class="panel-block">
+          <p class="panel-title">Front Matter 预览</p>
+          <pre id="frontmatter-preview" class="code-panel"></pre>
+        </div>
+
+        <div id="conflict-panel" class="panel-block hidden">
+          <p class="panel-title">冲突差异（服务器返回）</p>
+          <pre id="conflict-diff" class="code-panel"></pre>
         </div>
 
         <p id="editor-status" class="muted"></p>
@@ -83,11 +102,14 @@ console.log("hello blog");
     <footer class="site-footer">
       <div class="container">
         <small>发布和摘要均读取服务端配置。</small>
+        <div id="social-links" class="social-links"></div>
       </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/highlight.min.js"></script>
+    <script src="assets/site.js"></script>
     <script src="assets/markdown.js"></script>
     <script src="assets/editor.js"></script>
   </body>

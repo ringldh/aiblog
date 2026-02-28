@@ -3,7 +3,10 @@
   "editorAuth": {
     "enabled": true,
     "passwordEnv": "EDITOR_PASSWORD",
-    "sessionHours": 12
+    "sessionSecretEnv": "EDITOR_SESSION_SECRET",
+    "sessionHours": 12,
+    "maxAttempts": 5,
+    "cooldownMinutes": 10
   },
   "aiSummary": {
     "enabled": false,

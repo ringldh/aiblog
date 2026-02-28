@@ -2,13 +2,18 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-const ROOT = process.cwd();
-const POSTS_DIR = path.join(ROOT, "posts");
-const OUT_FILE = path.join(POSTS_DIR, "index.json");
-const CONFIG_FILE = path.join(ROOT, "blog.config.json");
-const AI_CACHE_FILE = path.join(POSTS_DIR, ".ai-summary-cache.json");
+function createContext(rootDir) {
+  const root = rootDir || process.cwd();
+  return {
+    ROOT: root,
+    POSTS_DIR: path.join(root, "posts"),
+    OUT_FILE: path.join(root, "posts", "index.json"),
+    CONFIG_FILE: path.join(root, "blog.config.json"),
+    AI_CACHE_FILE: path.join(root, "posts", ".ai-summary-cache.json")
+  };
+}
 
-function loadConfig() {
+function loadConfig(configFile) {
   const defaults = {
     excerptLength: 120,
     aiSummary: {
@@ -23,8 +28,8 @@ function loadConfig() {
       allowStaleCache: true
     }
   };
-  if (!fs.existsSync(CONFIG_FILE)) return defaults;
-  const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
+  if (!fs.existsSync(configFile)) return defaults;
+  const parsed = JSON.parse(fs.readFileSync(configFile, "utf8"));
   return {
     excerptLength: Number(parsed?.excerptLength || defaults.excerptLength),
     aiSummary: {
@@ -46,12 +51,10 @@ function loadConfig() {
   };
 }
 
-function loadAiCache() {
-  if (!fs.existsSync(AI_CACHE_FILE)) {
-    return { version: 1, entries: {} };
-  }
+function loadAiCache(cacheFile) {
+  if (!fs.existsSync(cacheFile)) return { version: 1, entries: {} };
   try {
-    const parsed = JSON.parse(fs.readFileSync(AI_CACHE_FILE, "utf8"));
+    const parsed = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
     if (!parsed || typeof parsed !== "object" || typeof parsed.entries !== "object") {
       return { version: 1, entries: {} };
     }
@@ -61,8 +64,8 @@ function loadAiCache() {
   }
 }
 
-function saveAiCache(cache) {
-  fs.writeFileSync(AI_CACHE_FILE, JSON.stringify(cache, null, 2) + "\n", "utf8");
+function saveAiCache(cacheFile, cache) {
+  fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2) + "\n", "utf8");
 }
 
 function readFrontMatter(content) {
@@ -191,8 +194,9 @@ async function resolveAiSummary(slug, title, body, config, cache) {
     entry.baseURL === config.aiSummary.baseURL &&
     typeof entry.summary === "string" &&
     entry.summary;
+
   if (isCacheHit) {
-    return { summary: entry.summary, source: "ai-cache", contentHash };
+    return { summary: entry.summary, source: "ai-cache" };
   }
 
   const summary = await requestAiSummary(title, body, config);
@@ -205,30 +209,32 @@ async function resolveAiSummary(slug, title, body, config, cache) {
       baseURL: config.aiSummary.baseURL,
       updatedAt: new Date().toISOString()
     };
-    return { summary, source: "ai", contentHash };
+    return { summary, source: "ai" };
   }
 
   if (config.aiSummary.allowStaleCache && entry && entry.summary) {
-    return { summary: entry.summary, source: "ai-cache-stale", contentHash };
+    return { summary: entry.summary, source: "ai-cache-stale" };
   }
-  return { summary: "", source: "", contentHash };
+  return { summary: "", source: "" };
 }
 
-async function build() {
-  const config = loadConfig();
-  const cache = loadAiCache();
-  if (!fs.existsSync(POSTS_DIR)) {
-    throw new Error(`posts directory not found: ${POSTS_DIR}`);
+async function buildIndex(rootDir) {
+  const ctx = createContext(rootDir);
+  const config = loadConfig(ctx.CONFIG_FILE);
+  const cache = loadAiCache(ctx.AI_CACHE_FILE);
+
+  if (!fs.existsSync(ctx.POSTS_DIR)) {
+    throw new Error(`posts directory not found: ${ctx.POSTS_DIR}`);
   }
 
   const files = fs
-    .readdirSync(POSTS_DIR, { withFileTypes: true })
+    .readdirSync(ctx.POSTS_DIR, { withFileTypes: true })
     .filter((d) => d.isFile() && d.name.toLowerCase().endsWith(".md"))
     .map((d) => d.name);
 
   const posts = [];
   for (const fileName of files) {
-    const fullPath = path.join(POSTS_DIR, fileName);
+    const fullPath = path.join(ctx.POSTS_DIR, fileName);
     const stat = fs.statSync(fullPath);
     const slug = path.basename(fileName, ".md");
     const content = fs.readFileSync(fullPath, "utf8");
@@ -267,12 +273,21 @@ async function build() {
     return a.slug.localeCompare(b.slug);
   });
 
-  fs.writeFileSync(OUT_FILE, JSON.stringify(posts, null, 2) + "\n", "utf8");
-  saveAiCache(cache);
-  console.log(`Generated ${posts.length} posts -> posts/index.json`);
+  fs.writeFileSync(ctx.OUT_FILE, JSON.stringify(posts, null, 2) + "\n", "utf8");
+  saveAiCache(ctx.AI_CACHE_FILE, cache);
+  return posts.length;
 }
 
-build().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+async function runCli() {
+  const n = await buildIndex(process.cwd());
+  console.log(`Generated ${n} posts -> posts/index.json`);
+}
+
+if (require.main === module) {
+  runCli().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
+module.exports = { buildIndex };

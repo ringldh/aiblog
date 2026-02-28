@@ -6,6 +6,7 @@
     "generate:index": "node scripts/generate-index.js",
     "check:content": "node scripts/check-content.js",
     "build": "npm run generate:index && npm run check:content",
+    "test": "node scripts/run-tests.js",
     "serve": "node scripts/dev-server.js",
     "start": "npm run build && npm run serve"
   }

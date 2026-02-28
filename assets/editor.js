@@ -4,7 +4,9 @@ function renderPreview() {
   const inputEl = document.getElementById("md-input");
   const previewEl = document.getElementById("preview");
   if (!inputEl || !previewEl) return;
-  previewEl.innerHTML = markdownToHtml(inputEl.value);
+  const rendered = renderMarkdown(inputEl.value);
+  previewEl.innerHTML = rendered.html;
+  applyCodeHighlight(previewEl);
 }
 
 function setStatus(message, isError = false) {
@@ -29,12 +31,50 @@ function inferTitle(markdown) {
   return "未命名文章";
 }
 
+function escapeFrontMatterValue(text) {
+  return String(text || "").replaceAll('"', '\\"');
+}
+
+function buildFrontMatterPreview() {
+  const title = document.getElementById("post-title")?.value.trim();
+  const date = document.getElementById("post-date")?.value.trim();
+  const summary = document.getElementById("ai-summary-output")?.value.trim();
+  const draft = document.getElementById("post-draft")?.checked;
+  const markdown = document.getElementById("md-input")?.value || "";
+
+  const lines = ["---"];
+  lines.push(`title: "${escapeFrontMatterValue(title || inferTitle(markdown))}"`);
+  lines.push(`date: ${date || new Date().toISOString().slice(0, 10)}`);
+  lines.push(`draft: ${draft ? "true" : "false"}`);
+  if (summary) lines.push(`description: "${escapeFrontMatterValue(summary)}"`);
+  lines.push("---");
+  const text = lines.join("\n");
+
+  const panel = document.getElementById("frontmatter-preview");
+  if (panel) panel.textContent = text;
+}
+
 function setEditorLocked(locked) {
   editorLocked = locked;
   const aiBtn = document.getElementById("btn-ai-summary");
   const pubBtn = document.getElementById("btn-publish");
+  const draftBtn = document.getElementById("btn-save-draft");
   if (aiBtn) aiBtn.disabled = locked;
   if (pubBtn) pubBtn.disabled = locked;
+  if (draftBtn) draftBtn.disabled = locked;
+}
+
+function showConflictDiff(diffText) {
+  const panel = document.getElementById("conflict-panel");
+  const diff = document.getElementById("conflict-diff");
+  if (!panel || !diff) return;
+  if (!diffText) {
+    panel.classList.add("hidden");
+    diff.textContent = "";
+    return;
+  }
+  panel.classList.remove("hidden");
+  diff.textContent = diffText;
 }
 
 async function refreshAuthState() {
@@ -61,11 +101,12 @@ async function refreshAuthState() {
     if (data.authenticated) {
       setEditorLocked(false);
       setAuthStatus("已登录");
-      loginBtn.style.display = "none";
+      loginBtn.style.display = "inline-block";
       logoutBtn.style.display = "inline-block";
     } else {
       setEditorLocked(true);
-      setAuthStatus(data.message || "请先输入密码登录。");
+      const lockMsg = data.locked ? `，已锁定 ${data.retrySeconds || 0} 秒` : "";
+      setAuthStatus((data.message || "请先输入密码登录。") + lockMsg);
       loginBtn.style.display = "inline-block";
       logoutBtn.style.display = "none";
     }
@@ -146,14 +187,16 @@ async function generateAiSummary() {
       throw new Error(data.message || `请求失败(${res.status})`);
     }
     outputEl.value = data.summary || "";
+    buildFrontMatterPreview();
     setStatus("AI 摘要生成成功。");
   } catch (err) {
     outputEl.value = "";
+    buildFrontMatterPreview();
     setStatus(`AI 摘要失败：${err.message}`, true);
   }
 }
 
-async function publishPost() {
+async function submitPublish({ forceDraft = false } = {}) {
   if (editorLocked) {
     setStatus("请先登录编辑器。", true);
     return;
@@ -163,23 +206,25 @@ async function publishPost() {
   const slugEl = document.getElementById("post-slug");
   const dateEl = document.getElementById("post-date");
   const summaryEl = document.getElementById("ai-summary-output");
-  if (!mdInput || !titleEl || !slugEl || !dateEl || !summaryEl) return;
+  const draftEl = document.getElementById("post-draft");
 
-  const markdown = mdInput.value;
-  if (!markdown.trim()) {
+  if (!mdInput || !titleEl || !slugEl || !dateEl || !summaryEl || !draftEl) return;
+  if (!mdInput.value.trim()) {
     setStatus("正文为空，不能发布。", true);
     return;
   }
 
   const payload = {
-    markdown,
-    title: titleEl.value.trim() || inferTitle(markdown),
+    markdown: mdInput.value,
+    title: titleEl.value.trim() || inferTitle(mdInput.value),
     slug: slugEl.value.trim(),
     date: dateEl.value.trim(),
-    description: summaryEl.value.trim()
+    description: summaryEl.value.trim(),
+    draft: forceDraft ? true : Boolean(draftEl.checked)
   };
 
-  setStatus("正在发布...");
+  showConflictDiff("");
+  setStatus(forceDraft ? "正在保存草稿..." : "正在发布...");
   try {
     let res = await fetch("/api/publish", {
       method: "POST",
@@ -187,7 +232,9 @@ async function publishPost() {
       body: JSON.stringify(payload)
     });
     let data = await res.json();
+
     if (res.status === 409) {
+      showConflictDiff(data.diff || "");
       const yes = window.confirm(`${data.message}\n是否覆盖发布？`);
       if (!yes) {
         setStatus("发布已取消。");
@@ -200,11 +247,21 @@ async function publishPost() {
       });
       data = await res.json();
     }
+
     if (!res.ok || !data.ok) {
       throw new Error(data.message || `发布失败(${res.status})`);
     }
+
     if (!slugEl.value.trim()) slugEl.value = data.slug || "";
-    setStatus(`发布成功：posts/${data.slug}.md，索引已更新。`);
+    buildFrontMatterPreview();
+
+    if (data.draft) {
+      setStatus(`草稿已保存：${data.path}`);
+      return;
+    }
+
+    setStatus(`发布成功：${data.path}`);
+    window.location.href = `post.html?slug=${encodeURIComponent(data.slug)}`;
   } catch (err) {
     setStatus(`发布失败：${err.message}`, true);
   }
@@ -213,10 +270,19 @@ async function publishPost() {
 document.getElementById("btn-preview")?.addEventListener("click", renderPreview);
 document.getElementById("btn-download")?.addEventListener("click", downloadMarkdown);
 document.getElementById("btn-ai-summary")?.addEventListener("click", generateAiSummary);
-document.getElementById("btn-publish")?.addEventListener("click", publishPost);
+document.getElementById("btn-publish")?.addEventListener("click", () => submitPublish());
+document
+  .getElementById("btn-save-draft")
+  ?.addEventListener("click", () => submitPublish({ forceDraft: true }));
 document.getElementById("btn-auth-login")?.addEventListener("click", loginEditor);
 document.getElementById("btn-auth-logout")?.addEventListener("click", logoutEditor);
 
+for (const id of ["post-title", "post-slug", "post-date", "post-draft", "ai-summary-output", "md-input"]) {
+  document.getElementById(id)?.addEventListener("input", buildFrontMatterPreview);
+  document.getElementById(id)?.addEventListener("change", buildFrontMatterPreview);
+}
+
 renderPreview();
+buildFrontMatterPreview();
 setEditorLocked(true);
 refreshAuthState();
