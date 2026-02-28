@@ -206,11 +206,39 @@ nav {
   margin-top: 10px;
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.auth-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.auth-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.auth-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.auth-row input {
+  min-width: 220px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
 }
 
 .form-grid {
   display: grid;
   gap: 10px;
+  margin-bottom: 10px;
 }
 
 .form-grid label {
@@ -228,6 +256,13 @@ nav {
 .summary-output {
   min-height: 100px;
   margin-top: 10px;
+}
+
+.summary-label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  margin-top: 6px;
 }
 
 button {

@@ -1,10 +1,114 @@
-const AI_SETTINGS_KEY = "blog_editor_ai_settings_v1";
+let editorLocked = false;
 
 function renderPreview() {
   const inputEl = document.getElementById("md-input");
   const previewEl = document.getElementById("preview");
   if (!inputEl || !previewEl) return;
   previewEl.innerHTML = markdownToHtml(inputEl.value);
+}
+
+function setStatus(message, isError = false) {
+  const statusEl = document.getElementById("editor-status");
+  if (!statusEl) return;
+  statusEl.textContent = message || "";
+  statusEl.style.color = isError ? "#b91c1c" : "";
+}
+
+function setAuthStatus(message, isError = false) {
+  const el = document.getElementById("auth-status");
+  if (!el) return;
+  el.textContent = message || "";
+  el.style.color = isError ? "#b91c1c" : "";
+}
+
+function inferTitle(markdown) {
+  for (const line of String(markdown).split(/\r?\n/)) {
+    const m = line.match(/^#\s+(.+)$/);
+    if (m) return m[1].trim();
+  }
+  return "未命名文章";
+}
+
+function setEditorLocked(locked) {
+  editorLocked = locked;
+  const aiBtn = document.getElementById("btn-ai-summary");
+  const pubBtn = document.getElementById("btn-publish");
+  if (aiBtn) aiBtn.disabled = locked;
+  if (pubBtn) pubBtn.disabled = locked;
+}
+
+async function refreshAuthState() {
+  const panel = document.getElementById("auth-panel");
+  const loginBtn = document.getElementById("btn-auth-login");
+  const logoutBtn = document.getElementById("btn-auth-logout");
+  if (!panel || !loginBtn || !logoutBtn) return;
+
+  try {
+    const res = await fetch("/api/editor/auth-status");
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      setEditorLocked(true);
+      panel.style.display = "block";
+      setAuthStatus(data.message || "鉴权状态检查失败。", true);
+      return;
+    }
+    if (!data.enabled) {
+      panel.style.display = "none";
+      setEditorLocked(false);
+      return;
+    }
+    panel.style.display = "block";
+    if (data.authenticated) {
+      setEditorLocked(false);
+      setAuthStatus("已登录");
+      loginBtn.style.display = "none";
+      logoutBtn.style.display = "inline-block";
+    } else {
+      setEditorLocked(true);
+      setAuthStatus(data.message || "请先输入密码登录。");
+      loginBtn.style.display = "inline-block";
+      logoutBtn.style.display = "none";
+    }
+  } catch (err) {
+    panel.style.display = "block";
+    setEditorLocked(true);
+    setAuthStatus(`鉴权状态检查失败：${err.message}`, true);
+  }
+}
+
+async function loginEditor() {
+  const input = document.getElementById("editor-password");
+  if (!input) return;
+  const password = input.value;
+  if (!password) {
+    setAuthStatus("请输入密码。", true);
+    return;
+  }
+  setAuthStatus("正在登录...");
+  try {
+    const res = await fetch("/api/editor/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.message || `登录失败(${res.status})`);
+    }
+    input.value = "";
+    await refreshAuthState();
+  } catch (err) {
+    setEditorLocked(true);
+    setAuthStatus(`登录失败：${err.message}`, true);
+  }
+}
+
+async function logoutEditor() {
+  try {
+    await fetch("/api/editor/logout", { method: "POST" });
+  } finally {
+    await refreshAuthState();
+  }
 }
 
 function downloadMarkdown() {
@@ -17,116 +121,102 @@ function downloadMarkdown() {
   a.download = "draft.md";
   a.click();
   URL.revokeObjectURL(url);
-}
-
-function loadAiSettings() {
-  try {
-    const raw = localStorage.getItem(AI_SETTINGS_KEY);
-    if (!raw) return;
-    const settings = JSON.parse(raw);
-    document.getElementById("ai-baseurl").value = settings.baseURL || "";
-    document.getElementById("ai-model").value = settings.model || "";
-    document.getElementById("ai-key").value = settings.apiKey || "";
-  } catch {
-    // no-op
-  }
-}
-
-function saveAiSettings() {
-  const settings = {
-    baseURL: document.getElementById("ai-baseurl").value.trim(),
-    model: document.getElementById("ai-model").value.trim(),
-    apiKey: document.getElementById("ai-key").value.trim()
-  };
-  localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings));
-  return settings;
-}
-
-function stripMarkdown(text) {
-  return String(text)
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "$1")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/^>\s?/gm, "")
-    .replace(/^[-*+]\s+/gm, "")
-    .replace(/^\d+\.\s+/gm, "")
-    .replace(/[*_~>#-]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function inferTitle(md) {
-  for (const line of md.split(/\r?\n/)) {
-    const m = line.match(/^#\s+(.+)$/);
-    if (m) return m[1].trim();
-  }
-  return "未命名文章";
+  setStatus("已下载 draft.md");
 }
 
 async function generateAiSummary() {
-  const outputEl = document.getElementById("ai-summary-output");
+  if (editorLocked) {
+    setStatus("请先登录编辑器。", true);
+    return;
+  }
   const mdInput = document.getElementById("md-input");
-  if (!outputEl || !mdInput) return;
+  const outputEl = document.getElementById("ai-summary-output");
+  if (!mdInput || !outputEl) return;
 
-  const settings = saveAiSettings();
-  if (!settings.baseURL || !settings.model || !settings.apiKey) {
-    outputEl.value = "请先填写 Base URL / Model / API Key。";
+  setStatus("正在生成 AI 摘要...");
+  outputEl.value = "正在生成...";
+  try {
+    const res = await fetch("/api/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ markdown: mdInput.value })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.message || `请求失败(${res.status})`);
+    }
+    outputEl.value = data.summary || "";
+    setStatus("AI 摘要生成成功。");
+  } catch (err) {
+    outputEl.value = "";
+    setStatus(`AI 摘要失败：${err.message}`, true);
+  }
+}
+
+async function publishPost() {
+  if (editorLocked) {
+    setStatus("请先登录编辑器。", true);
+    return;
+  }
+  const mdInput = document.getElementById("md-input");
+  const titleEl = document.getElementById("post-title");
+  const slugEl = document.getElementById("post-slug");
+  const dateEl = document.getElementById("post-date");
+  const summaryEl = document.getElementById("ai-summary-output");
+  if (!mdInput || !titleEl || !slugEl || !dateEl || !summaryEl) return;
+
+  const markdown = mdInput.value;
+  if (!markdown.trim()) {
+    setStatus("正文为空，不能发布。", true);
     return;
   }
 
-  const title = inferTitle(mdInput.value);
-  const text = stripMarkdown(mdInput.value).slice(0, 4000);
-  if (!text) {
-    outputEl.value = "正文为空，无法生成摘要。";
-    return;
-  }
-
-  outputEl.value = "正在生成摘要...";
-  const endpoint = `${settings.baseURL.replace(/\/$/, "")}/chat/completions`;
   const payload = {
-    model: settings.model,
-    temperature: 0.2,
-    max_tokens: 120,
-    messages: [
-      {
-        role: "system",
-        content: "Generate one concise Chinese summary sentence for a blog post. Plain text only."
-      },
-      {
-        role: "user",
-        content: `请生成一句摘要（不超过140字）。标题：${title}\n正文：${text}`
-      }
-    ]
+    markdown,
+    title: titleEl.value.trim() || inferTitle(markdown),
+    slug: slugEl.value.trim(),
+    date: dateEl.value.trim(),
+    description: summaryEl.value.trim()
   };
 
+  setStatus("正在发布...");
   try {
-    const res = await fetch(endpoint, {
+    let res = await fetch("/api/publish", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${settings.apiKey}`
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) {
-      outputEl.value = `请求失败：${res.status}`;
-      return;
+    let data = await res.json();
+    if (res.status === 409) {
+      const yes = window.confirm(`${data.message}\n是否覆盖发布？`);
+      if (!yes) {
+        setStatus("发布已取消。");
+        return;
+      }
+      res = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, overwrite: true })
+      });
+      data = await res.json();
     }
-    const data = await res.json();
-    const summary = String(data?.choices?.[0]?.message?.content || "")
-      .replace(/\s+/g, " ")
-      .trim();
-    outputEl.value = summary || "模型未返回摘要。";
+    if (!res.ok || !data.ok) {
+      throw new Error(data.message || `发布失败(${res.status})`);
+    }
+    if (!slugEl.value.trim()) slugEl.value = data.slug || "";
+    setStatus(`发布成功：posts/${data.slug}.md，索引已更新。`);
   } catch (err) {
-    outputEl.value = `请求异常：${err.message}`;
+    setStatus(`发布失败：${err.message}`, true);
   }
 }
 
 document.getElementById("btn-preview")?.addEventListener("click", renderPreview);
 document.getElementById("btn-download")?.addEventListener("click", downloadMarkdown);
 document.getElementById("btn-ai-summary")?.addEventListener("click", generateAiSummary);
+document.getElementById("btn-publish")?.addEventListener("click", publishPost);
+document.getElementById("btn-auth-login")?.addEventListener("click", loginEditor);
+document.getElementById("btn-auth-logout")?.addEventListener("click", logoutEditor);
 
-loadAiSettings();
 renderPreview();
+setEditorLocked(true);
+refreshAuthState();

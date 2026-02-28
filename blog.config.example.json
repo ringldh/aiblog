@@ -1,5 +1,10 @@
 {
   "excerptLength": 120,
+  "editorAuth": {
+    "enabled": true,
+    "passwordEnv": "EDITOR_PASSWORD",
+    "sessionHours": 12
+  },
   "aiSummary": {
     "enabled": false,
     "mode": "missing-meta",

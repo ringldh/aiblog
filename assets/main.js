@@ -31,7 +31,7 @@ async function loadPosts() {
             <h3><a href="post.html?slug=${encodeURIComponent(post.slug)}">${escapeHtml(post.title)}</a></h3>
             <p class="meta">${escapeHtml(post.date || "")}</p>
             <p><span class="ai-badge">${source}</span> ${ai}</p>
-            <p><strong>导读：</strong>${excerpt}</p>
+            <p><strong>正文摘录：</strong>${excerpt}</p>
           </article>
         `;
       })

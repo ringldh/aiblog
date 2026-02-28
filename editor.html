@@ -20,6 +20,32 @@
     <main class="container editor-layout">
       <section>
         <h2>Markdown 编辑</h2>
+
+        <div id="auth-panel" class="auth-panel">
+          <p class="auth-title">编辑器已启用密码保护</p>
+          <div class="auth-row">
+            <input id="editor-password" type="password" placeholder="请输入编辑器密码" />
+            <button id="btn-auth-login" type="button">登录</button>
+            <button id="btn-auth-logout" type="button">退出</button>
+          </div>
+          <p id="auth-status" class="muted"></p>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            标题（可选）
+            <input id="post-title" type="text" placeholder="为空时从一级标题自动提取" />
+          </label>
+          <label>
+            Slug（可选）
+            <input id="post-slug" type="text" placeholder="例如 my-first-post" />
+          </label>
+          <label>
+            日期（可选）
+            <input id="post-date" type="date" />
+          </label>
+        </div>
+
         <textarea id="md-input" class="editor-input"># 你好，博客
 
 这里是你的第一篇 Markdown 预览。
@@ -32,34 +58,20 @@
 ```js
 console.log("hello blog");
 ```</textarea>
+
+        <label class="summary-label">
+          AI 摘要（发布时可写入 front matter 的 description）
+          <textarea id="ai-summary-output" class="editor-input summary-output"></textarea>
+        </label>
+
         <div class="editor-actions">
           <button id="btn-preview" type="button">刷新预览</button>
           <button id="btn-download" type="button">下载 .md</button>
-        </div>
-
-        <h3>AI 摘要（OpenAI-like）</h3>
-        <div class="form-grid">
-          <label>
-            Base URL
-            <input id="ai-baseurl" type="text" value="http://127.0.0.1:3000/v1" />
-          </label>
-          <label>
-            Model
-            <input id="ai-model" type="text" value="qwen2.5:7b" />
-          </label>
-          <label>
-            API Key
-            <input id="ai-key" type="password" placeholder="sk-..." />
-          </label>
-        </div>
-        <div class="editor-actions">
+          <button id="btn-publish" type="button">发布到网站</button>
           <button id="btn-ai-summary" type="button">AI 生成摘要</button>
         </div>
-        <textarea
-          id="ai-summary-output"
-          class="editor-input summary-output"
-          placeholder="这里显示 AI 摘要结果"
-        ></textarea>
+
+        <p id="editor-status" class="muted"></p>
       </section>
 
       <section>
@@ -70,7 +82,7 @@ console.log("hello blog");
 
     <footer class="site-footer">
       <div class="container">
-        <small>编辑器中的 API Key 仅保存到当前浏览器本地存储。</small>
+        <small>发布和摘要均读取服务端配置。</small>
       </div>
     </footer>
 
