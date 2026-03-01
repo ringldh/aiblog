@@ -38,24 +38,24 @@ EDITOR_PASSWORD=your_editor_password
 EDITOR_SESSION_SECRET=your_session_secret
 ```
 
-## 3. 编辑器功能
+## 3. 页面与功能
 
-地址：`http://localhost:8000/editor.html`
+- 编辑器：`/editor.html`
+  - 密码登录后才能使用 `发布到网站` / `AI 生成摘要`
+  - 登录失败次数限制与冷却锁定
+  - 支持保存草稿、Front Matter 预览、冲突 diff、发布后自动跳转
+- 管理页：`/manage.html`
+  - 列出全部文章（含草稿）
+  - 一键转草稿 / 发布
+  - 删除文章（自动重建索引）
+- 首页：显示标题、日期、AI 摘要、正文摘录
+- 文章页：显示 AI 摘要、目录（TOC）、代码高亮
 
-已支持：
-- 密码登录后才能使用 `发布到网站` / `AI 生成摘要`
-- 登录失败次数限制与冷却锁定
-- `保存草稿`（写入 `draft: true`，不会出现在首页）
-- `Front Matter 预览`
-- 发布冲突时显示差异并可选择覆盖
-- 发布成功自动跳转文章详情页
+## 4. 社媒链接
 
-## 4. 页面能力
-
-- 首页显示：标题、日期、AI 摘要、正文摘录
-- 文章页显示：标题下 AI 摘要 + 正文目录（TOC）+ 代码高亮
-- 全站社媒位：`Bilibili / 抖音 / 小红书`
-  - 配置文件：`site.config.json`（或示例 `site.config.example.json`）
+全站支持社媒位（Bilibili / 抖音 / 小红书）：
+- 配置文件：`site.config.json`
+- 示例：`site.config.example.json`
 
 ## 5. 索引与缓存
 

@@ -168,18 +168,13 @@ function createServer(options = {}) {
   }
 
   function getEditorAuthState(req, settings) {
-    if (!settings.enabled) {
-      return { enabled: false, authenticated: true, misconfigured: false };
-    }
+    if (!settings.enabled) return { enabled: false, authenticated: true, misconfigured: false };
     const password = resolveEditorPassword(settings);
     const secret = resolveSessionSecret(settings, password);
-    if (!password || !secret) {
-      return { enabled: true, authenticated: false, misconfigured: true };
-    }
+    if (!password || !secret) return { enabled: true, authenticated: false, misconfigured: true };
     const cookies = parseCookies(req);
     const token = cookies[settings.cookieName];
-    const authenticated = verifySessionToken(token, secret);
-    return { enabled: true, authenticated, misconfigured: false };
+    return { enabled: true, authenticated: verifySessionToken(token, secret), misconfigured: false };
   }
 
   function isEditorAuthenticated(req, settings) {
@@ -221,8 +216,50 @@ function createServer(options = {}) {
     const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(
       d.getDate()
     ).padStart(2, "0")}`;
-    const hms = `${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}${String(d.getSeconds()).padStart(2, "0")}`;
+    const hms = `${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(
+      2,
+      "0"
+    )}${String(d.getSeconds()).padStart(2, "0")}`;
     return `post-${ymd}-${hms}`;
+  }
+
+  function parseFrontMatter(content) {
+    const match = content.match(/^---\n([\s\S]*?)\n---\n?/);
+    if (!match) return { meta: {}, body: content };
+    const meta = {};
+    for (const line of match[1].split("\n")) {
+      const kv = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.+)\s*$/);
+      if (!kv) continue;
+      meta[kv[1].trim()] = kv[2].trim().replace(/^"(.*)"$/, "$1");
+    }
+    return { meta, body: content.slice(match[0].length) };
+  }
+
+  function buildFrontMatter(meta, body) {
+    const ordered = ["title", "date", "draft", "description"];
+    const used = new Set();
+    const lines = ["---"];
+
+    for (const key of ordered) {
+      if (!(key in meta)) continue;
+      used.add(key);
+      const value = meta[key];
+      if (key === "draft") {
+        lines.push(`draft: ${String(value).toLowerCase() === "true" ? "true" : "false"}`);
+      } else if (key === "date") {
+        lines.push(`date: ${value}`);
+      } else {
+        lines.push(`${key}: "${String(value).replaceAll('"', '\\"')}"`);
+      }
+    }
+
+    for (const [k, v] of Object.entries(meta)) {
+      if (used.has(k)) continue;
+      lines.push(`${k}: "${String(v).replaceAll('"', '\\"')}"`);
+    }
+
+    lines.push("---", "");
+    return lines.join("\n") + body.trim() + "\n";
   }
 
   function buildPostFileContent(payload) {
@@ -235,16 +272,11 @@ function createServer(options = {}) {
     const description = String(payload?.description || "").trim();
     const draft = Boolean(payload?.draft);
 
-    let out = "---\n";
-    out += `title: "${title.replaceAll('"', '\\"')}"\n`;
-    out += `date: ${date}\n`;
-    out += `draft: ${draft ? "true" : "false"}\n`;
-    if (description) out += `description: "${description.replaceAll('"', '\\"')}"\n`;
-    out += "---\n\n";
-    out += markdown + "\n";
-
-    const frontMatterPreview = out.split("\n\n")[0] + "\n";
-    return { title, slug, date, draft, content: out, frontMatterPreview };
+    const meta = { title, date, draft: draft ? "true" : "false" };
+    if (description) meta.description = description;
+    const content = buildFrontMatter(meta, markdown);
+    const frontMatterPreview = content.split("\n\n")[0] + "\n";
+    return { slug, draft, content, frontMatterPreview };
   }
 
   function buildSimpleDiff(existingText, incomingText, maxLines = 200) {
@@ -255,9 +287,8 @@ function createServer(options = {}) {
     for (let i = 0; i < len && lines.length < maxLines; i++) {
       const left = a[i];
       const right = b[i];
-      if (left === right) {
-        lines.push(`  ${left || ""}`);
-      } else {
+      if (left === right) lines.push(`  ${left || ""}`);
+      else {
         if (typeof left !== "undefined") lines.push(`- ${left}`);
         if (typeof right !== "undefined") lines.push(`+ ${right}`);
       }
@@ -266,25 +297,81 @@ function createServer(options = {}) {
     return lines.join("\n");
   }
 
+  function getPostsDir() {
+    return path.join(root, "posts");
+  }
+
+  function assertValidSlug(slug) {
+    if (!/^[a-z0-9\u4e00-\u9fa5-]+$/i.test(String(slug || ""))) {
+      throw new Error("无效 slug");
+    }
+  }
+
+  function postFilePath(slug) {
+    assertValidSlug(slug);
+    return path.join(getPostsDir(), `${slug}.md`);
+  }
+
+  function listAllPosts() {
+    const postsDir = getPostsDir();
+    if (!fs.existsSync(postsDir)) return [];
+    const files = fs
+      .readdirSync(postsDir, { withFileTypes: true })
+      .filter((d) => d.isFile() && d.name.toLowerCase().endsWith(".md"))
+      .map((d) => d.name);
+    const out = [];
+    for (const fileName of files) {
+      const slug = path.basename(fileName, ".md");
+      if (slug === "draft" || slug.startsWith("_")) continue;
+      const full = path.join(postsDir, fileName);
+      const stat = fs.statSync(full);
+      const content = fs.readFileSync(full, "utf8");
+      const { meta, body } = parseFrontMatter(content);
+      out.push({
+        slug,
+        title: meta.title || inferTitle(body),
+        date: meta.date || stat.mtime.toISOString().slice(0, 10),
+        draft: String(meta.draft || "").toLowerCase() === "true",
+        size: stat.size,
+        updatedAt: stat.mtime.toISOString()
+      });
+    }
+    out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return out;
+  }
+
+  async function setPostDraft(slug, draft) {
+    const file = postFilePath(slug);
+    if (!fs.existsSync(file)) throw new Error("文章不存在");
+    const content = fs.readFileSync(file, "utf8");
+    const parsed = parseFrontMatter(content);
+    const meta = { ...parsed.meta };
+    if (!meta.title) meta.title = inferTitle(parsed.body);
+    if (!meta.date) meta.date = new Date().toISOString().slice(0, 10);
+    meta.draft = draft ? "true" : "false";
+    const next = buildFrontMatter(meta, parsed.body);
+    fs.writeFileSync(file, next, "utf8");
+    await buildIndex(root);
+  }
+
+  async function deletePost(slug) {
+    const file = postFilePath(slug);
+    if (!fs.existsSync(file)) throw new Error("文章不存在");
+    fs.unlinkSync(file);
+    await buildIndex(root);
+  }
+
   async function generateAiSummary(markdown) {
     const config = loadConfig();
-    if (!config) {
-      throw new Error("缺少 blog.config.json，请先从 blog.config.example.json 复制并配置。");
-    }
+    if (!config) throw new Error("缺少 blog.config.json，请先复制示例配置。");
     const ai = config.aiSummary || {};
-    if (!ai.enabled) {
-      throw new Error("请在 blog.config.json 中设置 aiSummary.enabled=true。");
-    }
+    if (!ai.enabled) throw new Error("请在 blog.config.json 中设置 aiSummary.enabled=true。");
     if (!ai.baseURL || !ai.model || !ai.apiKeyEnv) {
       throw new Error("请在 blog.config.json 中配置 aiSummary.baseURL/model/apiKeyEnv。");
     }
     const apiKey = process.env[ai.apiKeyEnv];
-    if (!apiKey) {
-      throw new Error(`缺少环境变量 ${ai.apiKeyEnv}。`);
-    }
-    if (!globalThis.fetch) {
-      throw new Error("当前 Node 版本不支持 fetch，请升级 Node。");
-    }
+    if (!apiKey) throw new Error(`缺少环境变量 ${ai.apiKeyEnv}。`);
+    if (!globalThis.fetch) throw new Error("当前 Node 版本不支持 fetch，请升级 Node。");
 
     const title = inferTitle(markdown);
     const maxInputChars = Number(ai.maxInputChars || 4000);
@@ -317,12 +404,10 @@ function createServer(options = {}) {
       },
       body: JSON.stringify(payload)
     });
-
     if (!res.ok) {
       const txt = await res.text();
       throw new Error(`AI 请求失败(${res.status}): ${txt.slice(0, 160)}`);
     }
-
     const data = await res.json();
     const summary = String(data?.choices?.[0]?.message?.content || "")
       .replace(/\s+/g, " ")
@@ -335,8 +420,7 @@ function createServer(options = {}) {
   async function publishPost(payload) {
     const { slug, draft, content, frontMatterPreview } = buildPostFileContent(payload);
     const overwrite = Boolean(payload?.overwrite);
-
-    const postsDir = path.join(root, "posts");
+    const postsDir = getPostsDir();
     fs.mkdirSync(postsDir, { recursive: true });
     const mdPath = path.join(postsDir, `${slug}.md`);
 
@@ -353,14 +437,7 @@ function createServer(options = {}) {
 
     fs.writeFileSync(mdPath, content, "utf8");
     await buildIndex(root);
-
-    return {
-      conflict: false,
-      slug,
-      draft,
-      path: `posts/${slug}.md`,
-      frontMatterPreview
-    };
+    return { conflict: false, slug, draft, path: `posts/${slug}.md`, frontMatterPreview };
   }
 
   function serveStatic(req, res, pathname) {
@@ -415,7 +492,6 @@ function createServer(options = {}) {
       try {
         const raw = await readBody(req);
         const body = JSON.parse(raw || "{}");
-
         if (!editorAuth.enabled) {
           sendJson(res, 200, { ok: true, enabled: false, authenticated: true });
           return;
@@ -454,10 +530,7 @@ function createServer(options = {}) {
             return;
           }
           const attemptsLeft = Math.max(0, editorAuth.maxAttempts - fail.attempts);
-          sendJson(res, 401, {
-            ok: false,
-            message: `密码错误，还可尝试 ${attemptsLeft} 次。`
-          });
+          sendJson(res, 401, { ok: false, message: `密码错误，还可尝试 ${attemptsLeft} 次。` });
           return;
         }
 
@@ -488,7 +561,12 @@ function createServer(options = {}) {
       return;
     }
 
-    const protectedApi = pathname === "/api/summary" || pathname === "/api/publish";
+    const protectedApi =
+      pathname === "/api/summary" ||
+      pathname === "/api/publish" ||
+      pathname === "/api/posts/manage" ||
+      pathname === "/api/posts/delete" ||
+      pathname === "/api/posts/set-draft";
     if (protectedApi && !isEditorAuthenticated(req, editorAuth)) {
       sendJson(res, 401, { ok: false, message: "未登录编辑器，请先输入密码。" });
       return;
@@ -511,11 +589,41 @@ function createServer(options = {}) {
         const raw = await readBody(req);
         const body = JSON.parse(raw || "{}");
         const result = await publishPost(body);
-        if (result.conflict) {
-          sendJson(res, 409, { ok: false, ...result });
-        } else {
-          sendJson(res, 200, { ok: true, ...result });
-        }
+        if (result.conflict) sendJson(res, 409, { ok: false, ...result });
+        else sendJson(res, 200, { ok: true, ...result });
+      } catch (err) {
+        sendJson(res, 400, { ok: false, message: err.message });
+      }
+      return;
+    }
+
+    if (req.method === "GET" && pathname === "/api/posts/manage") {
+      try {
+        sendJson(res, 200, { ok: true, posts: listAllPosts() });
+      } catch (err) {
+        sendJson(res, 400, { ok: false, message: err.message });
+      }
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/posts/delete") {
+      try {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || "{}");
+        await deletePost(body.slug);
+        sendJson(res, 200, { ok: true });
+      } catch (err) {
+        sendJson(res, 400, { ok: false, message: err.message });
+      }
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/posts/set-draft") {
+      try {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || "{}");
+        await setPostDraft(body.slug, Boolean(body.draft));
+        sendJson(res, 200, { ok: true });
       } catch (err) {
         sendJson(res, 400, { ok: false, message: err.message });
       }

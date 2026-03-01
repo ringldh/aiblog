@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>管理 - 我的博客</title>
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <h1><a href="index.html" class="title-link">我的博客</a></h1>
+        <nav>
+          <a href="index.html">首页</a>
+          <a href="editor.html">编辑器</a>
+          <a href="manage.html">管理</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="auth-panel">
+        <p class="auth-title">文章管理</p>
+        <div class="auth-row">
+          <input id="editor-password" type="password" placeholder="请输入编辑器密码" />
+          <button id="btn-auth-login" type="button">登录</button>
+          <button id="btn-auth-logout" type="button">退出</button>
+          <button id="btn-refresh" type="button">刷新列表</button>
+        </div>
+        <p id="auth-status" class="muted"></p>
+      </section>
+
+      <section class="card manage-card">
+        <p id="manage-status" class="muted"></p>
+        <div class="table-wrap">
+          <table class="manage-table">
+            <thead>
+              <tr>
+                <th>标题</th>
+                <th>Slug</th>
+                <th>日期</th>
+                <th>状态</th>
+                <th>更新时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="manage-body">
+              <tr>
+                <td colspan="6" class="muted">请先登录并刷新列表。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <small>管理页操作会自动重建索引。</small>
+        <div id="social-links" class="social-links"></div>
+      </div>
+    </footer>
+
+    <script src="assets/site.js"></script>
+    <script src="assets/manage.js"></script>
+  </body>
+</html>

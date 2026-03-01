@@ -35,6 +35,18 @@ function escapeFrontMatterValue(text) {
   return String(text || "").replaceAll('"', '\\"');
 }
 
+function parseFrontMatter(content) {
+  const match = String(content).match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!match) return { meta: {}, body: String(content) };
+  const meta = {};
+  for (const line of match[1].split("\n")) {
+    const kv = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.+)\s*$/);
+    if (!kv) continue;
+    meta[kv[1].trim()] = kv[2].trim().replace(/^"(.*)"$/, "$1");
+  }
+  return { meta, body: String(content).slice(match[0].length) };
+}
+
 function buildFrontMatterPreview() {
   const title = document.getElementById("post-title")?.value.trim();
   const date = document.getElementById("post-date")?.value.trim();
@@ -48,10 +60,9 @@ function buildFrontMatterPreview() {
   lines.push(`draft: ${draft ? "true" : "false"}`);
   if (summary) lines.push(`description: "${escapeFrontMatterValue(summary)}"`);
   lines.push("---");
-  const text = lines.join("\n");
 
   const panel = document.getElementById("frontmatter-preview");
-  if (panel) panel.textContent = text;
+  if (panel) panel.textContent = lines.join("\n");
 }
 
 function setEditorLocked(locked) {
@@ -120,8 +131,7 @@ async function refreshAuthState() {
 async function loginEditor() {
   const input = document.getElementById("editor-password");
   if (!input) return;
-  const password = input.value;
-  if (!password) {
+  if (!input.value) {
     setAuthStatus("请输入密码。", true);
     return;
   }
@@ -130,12 +140,10 @@ async function loginEditor() {
     const res = await fetch("/api/editor/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password })
+      body: JSON.stringify({ password: input.value })
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) {
-      throw new Error(data.message || `登录失败(${res.status})`);
-    }
+    if (!res.ok || !data.ok) throw new Error(data.message || `登录失败(${res.status})`);
     input.value = "";
     await refreshAuthState();
   } catch (err) {
@@ -183,9 +191,7 @@ async function generateAiSummary() {
       body: JSON.stringify({ markdown: mdInput.value })
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) {
-      throw new Error(data.message || `请求失败(${res.status})`);
-    }
+    if (!res.ok || !data.ok) throw new Error(data.message || `请求失败(${res.status})`);
     outputEl.value = data.summary || "";
     buildFrontMatterPreview();
     setStatus("AI 摘要生成成功。");
@@ -207,7 +213,6 @@ async function submitPublish({ forceDraft = false } = {}) {
   const dateEl = document.getElementById("post-date");
   const summaryEl = document.getElementById("ai-summary-output");
   const draftEl = document.getElementById("post-draft");
-
   if (!mdInput || !titleEl || !slugEl || !dateEl || !summaryEl || !draftEl) return;
   if (!mdInput.value.trim()) {
     setStatus("正文为空，不能发布。", true);
@@ -232,7 +237,6 @@ async function submitPublish({ forceDraft = false } = {}) {
       body: JSON.stringify(payload)
     });
     let data = await res.json();
-
     if (res.status === 409) {
       showConflictDiff(data.diff || "");
       const yes = window.confirm(`${data.message}\n是否覆盖发布？`);
@@ -247,10 +251,7 @@ async function submitPublish({ forceDraft = false } = {}) {
       });
       data = await res.json();
     }
-
-    if (!res.ok || !data.ok) {
-      throw new Error(data.message || `发布失败(${res.status})`);
-    }
+    if (!res.ok || !data.ok) throw new Error(data.message || `发布失败(${res.status})`);
 
     if (!slugEl.value.trim()) slugEl.value = data.slug || "";
     buildFrontMatterPreview();
@@ -259,11 +260,34 @@ async function submitPublish({ forceDraft = false } = {}) {
       setStatus(`草稿已保存：${data.path}`);
       return;
     }
-
     setStatus(`发布成功：${data.path}`);
     window.location.href = `post.html?slug=${encodeURIComponent(data.slug)}`;
   } catch (err) {
     setStatus(`发布失败：${err.message}`, true);
+  }
+}
+
+async function loadPostFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const slug = params.get("slug");
+  if (!slug) return;
+
+  try {
+    const res = await fetch(`posts/${encodeURIComponent(slug)}.md`);
+    if (!res.ok) throw new Error("文章不存在或读取失败");
+    const text = await res.text();
+    const parsed = parseFrontMatter(text);
+    document.getElementById("post-title").value = parsed.meta.title || "";
+    document.getElementById("post-slug").value = slug;
+    document.getElementById("post-date").value = parsed.meta.date || "";
+    document.getElementById("post-draft").checked = String(parsed.meta.draft || "").toLowerCase() === "true";
+    document.getElementById("ai-summary-output").value = parsed.meta.description || "";
+    document.getElementById("md-input").value = parsed.body.trim();
+    renderPreview();
+    buildFrontMatterPreview();
+    setStatus(`已载入文章：${slug}`);
+  } catch (err) {
+    setStatus(`载入文章失败：${err.message}`, true);
   }
 }
 
@@ -286,3 +310,4 @@ renderPreview();
 buildFrontMatterPreview();
 setEditorLocked(true);
 refreshAuthState();
+loadPostFromQuery();

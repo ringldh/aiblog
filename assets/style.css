@@ -355,6 +355,60 @@ button:disabled {
   color: var(--danger);
 }
 
+.manage-card {
+  margin-top: 16px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.manage-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.manage-table th,
+.manage-table td {
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.op-col {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pill.pub {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pill.draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+button.danger {
+  border-color: #991b1b;
+  background: #b91c1c;
+}
+
+button.danger:hover {
+  background: #991b1b;
+}
+
 @media (max-width: 800px) {
   .editor-layout {
     grid-template-columns: 1fr;

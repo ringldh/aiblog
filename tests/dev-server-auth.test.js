@@ -93,6 +93,14 @@ async function runAuthCase() {
   });
   assert.equal(summaryRes.status, 400);
 
+  const manageRes = await fetch(`${base}/api/posts/manage`, {
+    headers: { Cookie: cookieHeader }
+  });
+  assert.equal(manageRes.status, 200);
+  const manageData = await manageRes.json();
+  assert.equal(manageData.ok, true);
+  assert.ok(Array.isArray(manageData.posts));
+
   await new Promise((resolve) => server.close(resolve));
 }
 
